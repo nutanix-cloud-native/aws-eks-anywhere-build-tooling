@@ -154,13 +154,33 @@ func (b *BuildOptions) BuildImage() {
 		}
 
 		outputArtifactPath = filepath.Join(cwd, fmt.Sprintf("%s.gz", b.Os))
+	} else if b.Hypervisor == NutanixAHV {
+		// Read and set the nutanix connection data
+		nutanixAHVConfigData, err := json.Marshal(b.NutanixAHVConfig)
+		if err != nil {
+			log.Fatalf("Error marshalling nutanix ahv config data")
+		}
+		err = ioutil.WriteFile(filepath.Join(upstreamImageBuilderProjectPath, "packer/nutanix/nutanix.json"), nutanixAHVConfigData, 0644)
+		if err != nil {
+			log.Fatalf("Error writing nutanix ahv config file to packer: %v", err)
+		}
+
+		buildCommand := fmt.Sprintf("make -C %s local-build-nutanix-ubuntu-2004", imageBuilderProjectPath)
+		err = executeMakeBuildCommand(buildCommand, b.ReleaseChannel)
+		if err != nil {
+			log.Fatalf("Error executing image-builder for nutanix ahv hypervisor: %v", err)
+		}
+
+		log.Printf("Image Build Successful\n Please find the image uploaded under Nutanix Image Service with name %s\n", b.NutanixAHVConfig.ImageName)
 	}
 
-	// Moving artifacts from upstream directory to cwd
-	log.Println("Moving artifacts from build directory to current working directory")
-	err = os.Rename(outputImageGlob[0], outputArtifactPath)
-	if err != nil {
-		log.Fatalf("Error moving output file to current working directory")
+	if outputArtifactPath != "" {
+		// Moving artifacts from upstream directory to cwd
+		log.Println("Moving artifacts from build directory to current working directory")
+		err = os.Rename(outputImageGlob[0], outputArtifactPath)
+		if err != nil {
+			log.Fatalf("Error moving output file to current working directory")
+		}
 	}
 
 	if codebuild != "true" {
